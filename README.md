@@ -14,8 +14,14 @@
 # 只链接 LazyVim 配置
 ./install.sh --lazyvim
 
-# 三项都安装
+# 可选安装 Anaconda Distribution（不会被 --all 自动选择）
+./install.sh --anaconda
+
+# 安装 Bash、Zsh 和 LazyVim
 ./install.sh --all
+
+# 上述全部组件再加 Anaconda
+./install.sh --all --anaconda
 ```
 
 `--bash` 会安装固定版本的 `ble.sh` 到 `~/.local/share/blesh`，并把 `~/.bashrc` 链接到仓库配置。Bash Prompt 显示 Conda 环境、上一条命令状态、当前路径、Git 分支和工作区状态，例如：
@@ -33,6 +39,27 @@ curl -LO https://github.com/akinomyoga/ble.sh/releases/download/v0.4.0-devel3/bl
 ```
 
 Zsh Prompt 会在最前面显示短机器名，例如 `amax ➜ dotfiles git:(master)`。
+
+## 可选安装 Anaconda
+
+`--anaconda` 会根据 Linux 架构选择官方 Anaconda Distribution `2025.12-2` 安装包，校验 SHA-256 后静默安装到 `~/anaconda3`，不需要 root 权限，也不会运行 `conda init` 去改写仓库管理的 shell 配置。现有 Bash/Zsh 配置会在下一次启动时自动加载它：
+
+```bash
+./install.sh --anaconda
+exec "$HOME/.local/bin/zsh"  # 或 exec bash
+conda --version
+```
+
+Anaconda 安装包约 1.0–1.2 GB，官方要求至少 5 GB 可用磁盘空间；当前 Linux 安装包要求 glibc 2.28 或更新版本。Anaconda 的使用还受其许可条款约束，特别是较大的商业组织应先确认授权要求。
+
+离线服务器可以先下载与架构匹配的官方安装包并复制过去：
+
+```bash
+# Linux x86_64
+curl -LO https://repo.anaconda.com/archive/Anaconda3-2025.12-2-Linux-x86_64.sh
+./install.sh --anaconda \
+  --anaconda-archive /path/to/Anaconda3-2025.12-2-Linux-x86_64.sh
+```
 
 LazyVim 要求 Neovim 0.11.2 或更新版本以及 Git。第一次运行 `nvim` 时会联网下载插件；完成后可运行 `:LazyHealth` 检查环境。
 

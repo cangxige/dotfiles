@@ -6,9 +6,11 @@ DOTFILES_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 INSTALL_BASH=0
 INSTALL_ZSH=0
 INSTALL_LAZYVIM=0
+INSTALL_ANACONDA=0
 BLESH_ARCHIVE=""
 BLESH_PREFIX="${BLESH_PREFIX:-$HOME/.local}"
 FORCE_BLESH=0
+ANACONDA_ARCHIVE=""
 ZSH_ARCHIVE=""
 NCURSES_ARCHIVE=""
 ZSH_PREFIX="${ZSH_PREFIX:-$HOME/.local}"
@@ -21,16 +23,20 @@ Usage:
   ./install.sh --zsh [--zsh-archive FILE] [--ncurses-archive FILE]
                    [--zsh-prefix DIR] [--force-zsh]
   ./install.sh --lazyvim
+  ./install.sh --anaconda [--anaconda-archive FILE]
   ./install.sh --all [bash and zsh options]
 
 Options:
   --bash                Install ble.sh and link .bashrc
   --zsh                 Build a private zsh, install its plugins, and link .zshrc
   --lazyvim             Link the tracked LazyVim config to ~/.config/nvim
-  --all                 Install Bash config, zsh, and LazyVim
+  --anaconda            Install Anaconda Distribution under ~/anaconda3
+  --all                 Install Bash config, zsh, and LazyVim (not Anaconda)
   --ble-archive FILE    Install ble.sh from a local archive
   --ble-prefix DIR      Install ble.sh under DIR (default: ~/.local)
   --force-ble           Replace an existing ble.sh installation
+  --anaconda-archive FILE
+                        Install Anaconda from a local .sh installer
   --zsh-archive FILE    Build zsh from a local source archive (for offline hosts)
   --ncurses-archive FILE
                         Use a local ncurses archive if system headers are missing
@@ -57,11 +63,24 @@ while (($#)); do
       INSTALL_LAZYVIM=1
       shift
       ;;
+    --anaconda)
+      INSTALL_ANACONDA=1
+      shift
+      ;;
     --all)
       INSTALL_BASH=1
       INSTALL_ZSH=1
       INSTALL_LAZYVIM=1
       shift
+      ;;
+    --anaconda-archive)
+      if [[ -z "${2:-}" ]]; then
+        echo "ERROR: --anaconda-archive requires a file." >&2
+        exit 2
+      fi
+      INSTALL_ANACONDA=1
+      ANACONDA_ARCHIVE="$2"
+      shift 2
       ;;
     --ble-archive)
       if [[ -z "${2:-}" ]]; then
@@ -128,7 +147,10 @@ while (($#)); do
   esac
 done
 
-if [[ "$INSTALL_BASH" -eq 0 && "$INSTALL_ZSH" -eq 0 && "$INSTALL_LAZYVIM" -eq 0 ]]; then
+if [[ "$INSTALL_BASH" -eq 0 &&
+      "$INSTALL_ZSH" -eq 0 &&
+      "$INSTALL_LAZYVIM" -eq 0 &&
+      "$INSTALL_ANACONDA" -eq 0 ]]; then
   usage >&2
   exit 2
 fi
@@ -178,6 +200,17 @@ install_bash() {
   echo "Bash config is ready. Start it with: exec bash"
 }
 
+install_anaconda() {
+  local -a anaconda_args
+  anaconda_args=()
+
+  if [[ -n "$ANACONDA_ARCHIVE" ]]; then
+    anaconda_args+=(--archive "$ANACONDA_ARCHIVE")
+  fi
+
+  "$DOTFILES_ROOT/install/anaconda.sh" "${anaconda_args[@]}"
+}
+
 install_zsh() {
   local -a zsh_args
   zsh_args=(--prefix "$ZSH_PREFIX")
@@ -222,6 +255,10 @@ install_lazyvim() {
   echo
   echo "LazyVim config is ready. Run nvim to download plugins, then run :LazyHealth."
 }
+
+if [[ "$INSTALL_ANACONDA" -eq 1 ]]; then
+  install_anaconda
+fi
 
 if [[ "$INSTALL_BASH" -eq 1 ]]; then
   install_bash
