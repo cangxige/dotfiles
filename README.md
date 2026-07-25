@@ -5,15 +5,34 @@
 ## 可选安装
 
 ```bash
+# 安装 Bash Prompt、Conda/Git 提示和 ble.sh 命令联想
+./install.sh --bash
+
 # 安装私有 Zsh 到 ~/.local，同时安装离线插件并链接 ~/.zshrc
 ./install.sh --zsh
 
 # 只链接 LazyVim 配置
 ./install.sh --lazyvim
 
-# 两项都安装
+# 三项都安装
 ./install.sh --all
 ```
+
+`--bash` 会安装固定版本的 `ble.sh` 到 `~/.local/share/blesh`，并把 `~/.bashrc` 链接到仓库配置。Bash Prompt 显示 Conda 环境、上一条命令状态、当前路径、Git 分支和工作区状态，例如：
+
+```text
+(base) ✔ ~/data/personal/dotfiles [master|✔]
+11:28 $
+```
+
+离线安装 `ble.sh` 时，先下载官方 `ble-0.4.0-devel3.tar.xz` 并复制到服务器：
+
+```bash
+curl -LO https://github.com/akinomyoga/ble.sh/releases/download/v0.4.0-devel3/ble-0.4.0-devel3.tar.xz
+./install.sh --bash --ble-archive /path/to/ble-0.4.0-devel3.tar.xz
+```
+
+Zsh Prompt 会在最前面显示短机器名，例如 `amax ➜ dotfiles git:(master)`。
 
 LazyVim 要求 Neovim 0.11.2 或更新版本以及 Git。第一次运行 `nvim` 时会联网下载插件；完成后可运行 `:LazyHealth` 检查环境。
 

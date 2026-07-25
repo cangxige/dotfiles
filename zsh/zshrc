@@ -195,6 +195,21 @@ unset _dotfiles_zsh_dir
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
+# Put the short machine name at the beginning of both Powerlevel10k and regular
+# Oh My Zsh prompts.
+# if (( $+functions[p10k] )); then
+#   function prompt_dotfiles_host() {
+#     p10k segment -f cyan -t "${HOST%%.*}"
+#   }
+#   typeset -g POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(
+#     dotfiles_host
+#     "${(@)POWERLEVEL9K_LEFT_PROMPT_ELEMENTS:#dotfiles_host}"
+#   )
+#   p10k reload
+# else
+#   PROMPT="%F{cyan}%m%f $PROMPT"
+# fi
+
 tar_xz() {
     local input_dir="$1"
     local output_dir="$2"

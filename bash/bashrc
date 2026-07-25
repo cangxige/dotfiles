@@ -1,4 +1,5 @@
 # ~/.bashrc: executed by bash(1) for non-login shells.
+# shellcheck shell=bash
 # see /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
 # for examples
 
@@ -7,6 +8,36 @@ case $- in
     *i*) ;;
       *) return;;
 esac
+
+# Use an available UTF-8 locale so ble.sh and the prompt symbols render
+# correctly.
+if command -v locale >/dev/null 2>&1 &&
+   locale -a 2>/dev/null | command grep -Eqi '^en_US\.utf-?8$'; then
+    export LANG=en_US.UTF-8
+    export LC_ALL=en_US.UTF-8
+elif command -v locale >/dev/null 2>&1 &&
+     locale -a 2>/dev/null | command grep -Eqi '^C\.utf-?8$'; then
+    export LANG=C.UTF-8
+    export LC_ALL=C.UTF-8
+fi
+
+# Load ble.sh without attaching yet. Attaching at the end lets the rest of this
+# file configure completion and the prompt first.
+_dotfiles_blesh=""
+for _dotfiles_blesh_candidate in \
+    "$HOME/.local/share/blesh/ble.sh" \
+    /usr/local/share/blesh/ble.sh \
+    /usr/share/blesh/ble.sh; do
+    if [ -r "$_dotfiles_blesh_candidate" ]; then
+        _dotfiles_blesh="$_dotfiles_blesh_candidate"
+        break
+    fi
+done
+if [ -n "$_dotfiles_blesh" ]; then
+    # shellcheck disable=SC1090
+    source -- "$_dotfiles_blesh" --attach=none
+fi
+unset _dotfiles_blesh _dotfiles_blesh_candidate
 
 # don't put duplicate lines or lines starting with space in the history.
 # See bash(1) for more options
@@ -115,54 +146,32 @@ if ! shopt -oq posix; then
     . /etc/bash_completion
   fi
 fi
-export TLDR_LANGUAGE=zh
-alias tldr="tldr -L zh"
-
 ########################################
 # Custom additions (from zshrc port)
 ########################################
 
-# Locale (避免某些工具/conda 输出乱码；如果你机器上没装对应 locale，可注释掉)
-export LANG=en_US.UTF-8
-export LC_ALL=en_US.UTF-8
-
-# tldr 中文（你已经写了 TLDR_LANGUAGE，这里保留一致）
 export TLDR_LANGUAGE=zh
 alias tldr="tldr -L zh"
 
-# man 中文（如果你的 man 不支持 -L，这行会报错；需要的话就保留，不需要就注释）
-alias man='man -L zh_CN'
+if command -v man >/dev/null 2>&1 &&
+   command man --help 2>/dev/null | command grep -q -- ' -L'; then
+    alias man='man -L zh_CN'
+fi
 
-# Common aliases
 alias ll="ls -lah"
 alias mv="mv -i"
 alias gs="git status"
 
-# ls 文件夹颜色：只对 GNU ls + 支持 LS_COLORS 生效
 export LS_COLORS="di=0;36"
 
-########################################
-# NVM (Node Version Manager)
-########################################
 export NVM_DIR="$HOME/.nvm"
 if [ -s "$NVM_DIR/nvm.sh" ]; then
   # shellcheck disable=SC1090
   . "$NVM_DIR/nvm.sh"
 fi
-# bash_completion（可选）
 if [ -s "$NVM_DIR/bash_completion" ]; then
   # shellcheck disable=SC1090
   . "$NVM_DIR/bash_completion"
-fi
-
-if [ -f /usr/share/git/completion/git-prompt.sh ]; then
-  # shellcheck disable=SC1091
-  . /usr/share/git/completion/git-prompt.sh
-  export GIT_PS1_SHOWDIRTYSTATE=1
-  export GIT_PS1_SHOWUNTRACKEDFILES=1
-  export GIT_PS1_SHOWUPSTREAM=auto
-  # 在原 PS1 基础上追加 git 分支信息（不强行覆盖你现有 PS1）
-  PS1="\u@\h:\w\$(__git_ps1 ' (%s)')\$ "
 fi
 
 # User-local programs, including zsh installed by this dotfiles repository.
@@ -170,3 +179,91 @@ case ":$PATH:" in
   *":$HOME/.local/bin:"*) ;;
   *) export PATH="$HOME/.local/bin:$PATH" ;;
 esac
+
+# Initialize Conda when it is installed in one of the common user locations.
+_dotfiles_conda_bin=""
+for _dotfiles_conda_root in \
+    "${CONDA_ROOT:-}" \
+    "$HOME/anaconda3" \
+    "$HOME/miniconda3" \
+    "$HOME/miniforge3" \
+    "$HOME/mambaforge"; do
+    [ -n "$_dotfiles_conda_root" ] || continue
+    if [ -x "$_dotfiles_conda_root/bin/conda" ]; then
+        _dotfiles_conda_bin="$_dotfiles_conda_root/bin/conda"
+        break
+    fi
+done
+if [ -z "$_dotfiles_conda_bin" ]; then
+    _dotfiles_conda_bin="$(type -P conda 2>/dev/null || true)"
+fi
+
+if [ -n "$_dotfiles_conda_bin" ]; then
+    if __conda_setup="$("$_dotfiles_conda_bin" shell.bash hook 2>/dev/null)"; then
+        eval "$__conda_setup"
+    else
+        _dotfiles_conda_root="${_dotfiles_conda_bin%/bin/conda}"
+        if [ -f "$_dotfiles_conda_root/etc/profile.d/conda.sh" ]; then
+            # shellcheck disable=SC1090
+            . "$_dotfiles_conda_root/etc/profile.d/conda.sh"
+        else
+            export PATH="$_dotfiles_conda_root/bin:$PATH"
+        fi
+    fi
+    unset __conda_setup
+fi
+unset _dotfiles_conda_bin _dotfiles_conda_root
+
+# The prompt renders Conda itself to keep the layout stable when environments
+# change. Conda activation still works; it just doesn't rewrite PS1.
+export CONDA_CHANGEPS1=false
+
+__dotfiles_conda_prompt() {
+    local environment="${CONDA_DEFAULT_ENV:-}"
+    [ -n "$environment" ] || return
+    printf '(%s) ' "${environment##*/}"
+}
+
+__dotfiles_git_prompt() {
+    local branch
+    local state="✔"
+
+    branch="$(command git symbolic-ref --quiet --short HEAD 2>/dev/null)" ||
+        branch="$(command git rev-parse --short HEAD 2>/dev/null)" ||
+        return
+
+    if [ -n "$(command git status --porcelain --untracked-files=normal 2>/dev/null)" ]; then
+        state="✘"
+    fi
+    printf ' [%s|%s]' "$branch" "$state"
+}
+
+__dotfiles_set_prompt() {
+    local last_status=$?
+    local status_color=32
+    local status_text="✔"
+
+    if [ -n "${BLE_VERSION:-}" ] && [ "${#BLE_PIPESTATUS[@]}" -gt 0 ]; then
+        last_status="${BLE_PIPESTATUS[${#BLE_PIPESTATUS[@]} - 1]}"
+    fi
+
+    if [ "$last_status" -ne 0 ]; then
+        status_color=31
+        status_text="✘-$last_status"
+    fi
+
+    PS1="\[\033[33m\]\$(__dotfiles_conda_prompt)"
+    PS1+="\[\033[${status_color}m\]${status_text}\[\033[0m\] "
+    PS1+="\[\033[36m\]\w"
+    PS1+="\[\033[35m\]\$(__dotfiles_git_prompt)\[\033[0m\]"
+    PS1+="\n\[\033[90m\]\A\[\033[0m\] \\\$ "
+}
+
+PROMPT_COMMAND=__dotfiles_set_prompt
+
+if [ -n "${BLE_VERSION:-}" ]; then
+    bleopt complete_auto_complete=1
+    bleopt complete_auto_history=1
+    bleopt complete_auto_delay=150
+    ble-attach
+fi
