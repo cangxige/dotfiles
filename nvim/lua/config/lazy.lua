@@ -15,11 +15,32 @@ end
 vim.opt.rtp:prepend(lazypath)
 
 require("lazy").setup({
+  lockfile = vim.env.DOTFILES_LAZY_LOCKFILE or (vim.fn.stdpath("config") .. "/lazy-lock.json"),
   spec = {
     -- add LazyVim and import its plugins
     { "LazyVim/LazyVim", import = "lazyvim.plugins" },
     -- import/override with your plugins
     { import = "plugins" },
+    -- Headless installation should install plugins only. Optional tools and
+    -- parsers are installed by LazyVim during the first normal startup.
+    {
+      "mason-org/mason.nvim",
+      optional = true,
+      opts = function(_, opts)
+        if vim.env.DOTFILES_LAZY_INSTALL == "1" then
+          opts.ensure_installed = {}
+        end
+      end,
+    },
+    {
+      "nvim-treesitter/nvim-treesitter",
+      optional = true,
+      opts = function(_, opts)
+        if vim.env.DOTFILES_LAZY_INSTALL == "1" then
+          opts.ensure_installed = {}
+        end
+      end,
+    },
   },
   defaults = {
     -- By default, only LazyVim plugins will be lazy-loaded. Your custom plugins will load during startup.
@@ -32,7 +53,7 @@ require("lazy").setup({
   },
   install = { colorscheme = { "tokyonight", "habamax" } },
   checker = {
-    enabled = true, -- check for plugin updates periodically
+    enabled = vim.env.DOTFILES_LAZY_INSTALL ~= "1", -- check for plugin updates periodically
     notify = false, -- notify on update
   }, -- automatically check for plugin updates
   performance = {

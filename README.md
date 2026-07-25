@@ -11,7 +11,7 @@
 # 安装私有 Zsh 到 ~/.local，同时安装离线插件并链接 ~/.zshrc
 ./install.sh --zsh
 
-# 只链接 LazyVim 配置
+# 无 sudo 安装 Neovim 本体、LazyVim 配置和插件
 ./install.sh --lazyvim
 
 # 可选安装 Anaconda Distribution（不会被 --all 自动选择）
@@ -61,7 +61,22 @@ curl -LO https://repo.anaconda.com/archive/Anaconda3-2025.12-2-Linux-x86_64.sh
   --anaconda-archive /path/to/Anaconda3-2025.12-2-Linux-x86_64.sh
 ```
 
-LazyVim 要求 Neovim 0.11.2 或更新版本以及 Git。第一次运行 `nvim` 时会联网下载插件；完成后可运行 `:LazyHealth` 检查环境。
+## 无管理员权限安装 LazyVim
+
+`--lazyvim` 会下载官方 Neovim `0.12.2` Linux 安装包并校验 SHA-256，安装到 `~/.local/opt/nvim-0.12.2`，然后创建 `~/.local/bin/nvim`、链接仓库配置，并按照 `lazy-lock.json` 下载 LazyVim 插件。已有 Neovim 版本不低于 `0.12.2` 时会自动跳过本体安装。
+
+```bash
+./install.sh --lazyvim
+nvim
+```
+
+整个过程不使用 `sudo`。插件安装需要 Git 和网络；`curl`、C 编译器与 `tree-sitter-cli` 是部分 LazyVim 功能的依赖。第一次正常启动 `nvim` 时，LazyVim 会继续安装配置中启用的 Mason 工具和 Tree-sitter parsers，完成后请运行 `:LazyHealth` 检查。离线安装 Neovim 本体时可传入官方安装包，但 LazyVim 插件仍需另外准备或联网下载：
+
+```bash
+# Linux x86_64
+curl -LO https://github.com/neovim/neovim/releases/download/v0.12.2/nvim-linux-x86_64.tar.gz
+./install.sh --lazyvim --nvim-archive /path/to/nvim-linux-x86_64.tar.gz
+```
 
 Zsh 默认从官方地址下载 5.9.2 源码，校验 SHA-256 后编译到 `~/.local`。需要 C 编译器、`make`、`tar`、`xz`、`gzip`，在线安装还需要 `curl` 或 `wget`；不需要 root 权限。如果服务器缺少 ncurses 开发包，脚本会自动下载并编译一份私有 ncurses 6.6。安装后运行：
 

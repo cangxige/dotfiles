@@ -11,6 +11,8 @@ BLESH_ARCHIVE=""
 BLESH_PREFIX="${BLESH_PREFIX:-$HOME/.local}"
 FORCE_BLESH=0
 ANACONDA_ARCHIVE=""
+NVIM_ARCHIVE=""
+FORCE_NVIM=0
 ZSH_ARCHIVE=""
 NCURSES_ARCHIVE=""
 ZSH_PREFIX="${ZSH_PREFIX:-$HOME/.local}"
@@ -22,14 +24,14 @@ Usage:
   ./install.sh --bash [--ble-archive FILE] [--ble-prefix DIR] [--force-ble]
   ./install.sh --zsh [--zsh-archive FILE] [--ncurses-archive FILE]
                    [--zsh-prefix DIR] [--force-zsh]
-  ./install.sh --lazyvim
+  ./install.sh --lazyvim [--nvim-archive FILE] [--force-nvim]
   ./install.sh --anaconda [--anaconda-archive FILE]
   ./install.sh --all [bash and zsh options]
 
 Options:
   --bash                Install ble.sh and link .bashrc
   --zsh                 Build a private zsh, install its plugins, and link .zshrc
-  --lazyvim             Link the tracked LazyVim config to ~/.config/nvim
+  --lazyvim             Install Neovim and LazyVim without sudo
   --anaconda            Install Anaconda Distribution under ~/anaconda3
   --all                 Install Bash config, zsh, and LazyVim (not Anaconda)
   --ble-archive FILE    Install ble.sh from a local archive
@@ -37,6 +39,8 @@ Options:
   --force-ble           Replace an existing ble.sh installation
   --anaconda-archive FILE
                         Install Anaconda from a local .sh installer
+  --nvim-archive FILE   Install Neovim from a local official tarball
+  --force-nvim          Reinstall the pinned Neovim version
   --zsh-archive FILE    Build zsh from a local source archive (for offline hosts)
   --ncurses-archive FILE
                         Use a local ncurses archive if system headers are missing
@@ -45,7 +49,7 @@ Options:
   -h, --help            Show this help
 
 Existing config files are moved to a timestamped .dotfiles-backup-* path.
-LazyVim plugins are downloaded by Neovim on first launch.
+LazyVim plugins are restored from lazy-lock.json during installation.
 EOF
 }
 
@@ -81,6 +85,20 @@ while (($#)); do
       INSTALL_ANACONDA=1
       ANACONDA_ARCHIVE="$2"
       shift 2
+      ;;
+    --nvim-archive)
+      if [[ -z "${2:-}" ]]; then
+        echo "ERROR: --nvim-archive requires a file." >&2
+        exit 2
+      fi
+      INSTALL_LAZYVIM=1
+      NVIM_ARCHIVE="$2"
+      shift 2
+      ;;
+    --force-nvim)
+      INSTALL_LAZYVIM=1
+      FORCE_NVIM=1
+      shift
       ;;
     --ble-archive)
       if [[ -z "${2:-}" ]]; then
@@ -234,26 +252,65 @@ install_zsh() {
   echo "Start it with: exec \"$ZSH_PREFIX/bin/zsh\""
 }
 
+install_lazyvim_plugins() (
+  set -e
+
+  local nvim_bin="$1"
+  local source_lock="$DOTFILES_ROOT/nvim/lazy-lock.json"
+  local work_dir install_lock
+
+  work_dir="$(mktemp -d "${TMPDIR:-/tmp}/dotfiles-lazyvim.XXXXXXXX")"
+  trap 'rm -rf -- "$work_dir"' EXIT
+  install_lock="$work_dir/lazy-lock.json"
+
+  cp "$source_lock" "$install_lock"
+  echo "[SYNC] LazyVim plugins"
+  DOTFILES_LAZY_INSTALL=1 \
+    DOTFILES_LAZY_LOCKFILE="$install_lock" \
+    DOTFILES_SOURCE_LOCKFILE="$source_lock" \
+    NVIM_LOG_FILE=/dev/null \
+    "$nvim_bin" --headless \
+    "+lua vim.fn.writefile(vim.fn.readfile(vim.env.DOTFILES_SOURCE_LOCKFILE, 'b'), vim.env.DOTFILES_LAZY_LOCKFILE, 'b'); local lock = require('lazy.manage.lock'); lock._loaded = false; lock.lock = {}" \
+    "+lua require('lazy').restore({ wait = true, show = false })" \
+    "+lua local missing = {}; for name, plugin in pairs(require('lazy.core.config').plugins) do if plugin._.installed ~= true then missing[#missing + 1] = name end end; if #missing > 0 then table.sort(missing); vim.api.nvim_err_writeln('LazyVim plugins missing: ' .. table.concat(missing, ', ')); vim.cmd('cquit 1') end" \
+    +qa </dev/null
+)
+
 install_lazyvim() {
-  if command -v nvim >/dev/null 2>&1; then
-    if ! nvim --clean --headless \
-      '+lua if vim.fn.has("nvim-0.11.2") == 0 then vim.cmd("cquit 1") end' \
-      +qa >/dev/null 2>&1; then
-      echo "ERROR: LazyVim requires Neovim 0.11.2 or newer." >&2
-      exit 1
-    fi
-  else
-    echo "WARNING: nvim is not installed; install Neovim 0.11.2+ before using LazyVim." >&2
+  if ! command -v git >/dev/null 2>&1; then
+    echo "ERROR: Git is required to install LazyVim plugins." >&2
+    exit 1
   fi
 
-  if ! command -v git >/dev/null 2>&1; then
-    echo "WARNING: git is required when LazyVim downloads plugins on first launch." >&2
+  local -a nvim_args
+  local nvim_bin="$HOME/.local/bin/nvim"
+  nvim_args=()
+  if [[ -n "$NVIM_ARCHIVE" ]]; then
+    nvim_args+=(--archive "$NVIM_ARCHIVE")
+  fi
+  if [[ "$FORCE_NVIM" -eq 1 ]]; then
+    nvim_args+=(--force)
+  fi
+
+  "$DOTFILES_ROOT/install/neovim.sh" "${nvim_args[@]}"
+  if ! NVIM_LOG_FILE=/dev/null "$nvim_bin" --clean --headless \
+    '+lua if vim.fn.has("nvim-0.11.2") == 0 then vim.cmd("cquit 1") end' \
+    +qa >/dev/null 2>&1; then
+    echo "ERROR: LazyVim requires Neovim 0.11.2 or newer." >&2
+    exit 1
+  fi
+
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "WARNING: LazyVim recommends curl for the completion engine." >&2
   fi
 
   link_config "$DOTFILES_ROOT/nvim" "${XDG_CONFIG_HOME:-$HOME/.config}/nvim"
 
+  install_lazyvim_plugins "$nvim_bin"
+
   echo
-  echo "LazyVim config is ready. Run nvim to download plugins, then run :LazyHealth."
+  echo "LazyVim is ready: $nvim_bin"
+  echo "Run :LazyHealth inside Neovim to check optional dependencies."
 }
 
 if [[ "$INSTALL_ANACONDA" -eq 1 ]]; then
