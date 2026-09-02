@@ -222,4 +222,5 @@ tar_xz() {
     du -sh "${output_dir}"
 }
 export PATH="$HOME/.local/bin:$PATH"
-export DISPLAY=localhost:0
+export DISPLAY=:1
+export XAUTHORITY=/home/cangxige/.Xauthority
